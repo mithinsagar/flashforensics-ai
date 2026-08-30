@@ -4,6 +4,8 @@ Agentic recovery for corrupted flash storage. Parses FAT32 and exFAT volumes at 
 
 **PhotoRec tells you it found 9,000 files. This tells you which 40 are your photos, and why.**
 
+![FlashForensics dashboard](docs/dashboard.png)
+
 ---
 
 ## The problem
