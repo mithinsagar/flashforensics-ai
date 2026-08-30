@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend tests and accuracy benchmark
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check flashforensics tools
+
+      - name: Tests
+        working-directory: backend
+        run: pytest -v
+
+      # The runner has no access to the model host, so the hashing embedder and
+      # the rule engine are what run here. That is the point: these numbers are
+      # reproducible without a key, a GPU or network egress.
+      - name: Recovery accuracy against ground truth
+        working-directory: backend
+        run: |
+          python tools/make_fixture.py --output fixtures/card.img --size-mb 64
+          python tools/benchmark.py --image fixtures/card.img --json-out fixtures/benchmark.json
+
+      - name: Assert no accuracy regression
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import json, sys
+          result = json.load(open("fixtures/benchmark.json"))
+          floors = {
+              "recall": 1.0,
+              "format_accuracy": 1.0,
+              "extent_accuracy": 1.0,
+              "verdict_accuracy": 1.0,
+          }
+          failed = False
+          for metric, floor in floors.items():
+              value = result[metric]
+              status = "ok " if value >= floor else "FAIL"
+              print(f"  {status} {metric:<18} {value:.1%}  (floor {floor:.0%})")
+              failed |= value < floor
+          if result["false_positives"] > 0:
+              print(f"  FAIL false_positives     {result['false_positives']}  (floor 0)")
+              failed = True
+          else:
+              print("  ok  false_positives     0")
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Upload benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-py${{ matrix.python-version }}
+          path: backend/fixtures/benchmark.json
+
+  mcp:
+    name: MCP server over stdio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e ".[dev]"
+      - name: Smoke test the protocol surface
+        working-directory: backend
+        run: |
+          python tools/make_fixture.py --output fixtures/card.img --size-mb 64
+          python tests/mcp_smoke.py --image fixtures/card.img
+
+  api:
+    name: HTTP API end to end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        working-directory: backend
+        run: pip install -e ".[dev]"
+      - name: Boot the server and exercise every endpoint
+        working-directory: backend
+        run: |
+          python tools/make_fixture.py --output fixtures/card.img --size-mb 64
+          uvicorn flashforensics.api.main:app --host 127.0.0.1 --port 8811 &
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8811/api/health > /dev/null && break
+            sleep 1
+          done
+          python tests/api_smoke.py --base http://127.0.0.1:8811 --image fixtures/card.img
+
+  frontend:
+    name: Dashboard build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+      - name: Build
+        working-directory: frontend
+        run: npm run build

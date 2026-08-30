@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Optional. Leave unset to run on the deterministic rule engine.
+      FF_ANTHROPIC_API_KEY: ${FF_ANTHROPIC_API_KEY:-}
+      FF_OPENAI_API_KEY: ${FF_OPENAI_API_KEY:-}
+      FF_CORS_ORIGINS: '["http://localhost:3000"]'
+    volumes:
+      # Working directory for uploads, exports and the persisted format index.
+      - flashforensics-data:/data
+      # Mount disk images read-only and analyse them by path, which avoids
+      # pushing a multi-gigabyte card image through a browser upload.
+      - ./backend/fixtures:/images:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx,sys; sys.exit(0 if httpx.get('http://127.0.0.1:8000/api/health', timeout=4).status_code==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  flashforensics-data:

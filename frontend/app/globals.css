@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #08090c;
+  color: #d5dae4;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #323a4c transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #323a4c;
+  border-radius: 4px;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-ink-700 bg-ink-900;
+  }
+
+  .panel-header {
+    @apply border-b border-ink-700 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500;
+  }
+
+  .stat-value {
+    @apply font-mono text-2xl font-semibold tabular-nums;
+  }
+
+  .stat-label {
+    @apply text-[10px] uppercase tracking-[0.14em] text-slate-500;
+  }
+}
