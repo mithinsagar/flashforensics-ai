@@ -4,9 +4,17 @@ Agentic recovery for corrupted flash storage. Parses FAT32 and exFAT volumes at 
 
 **PhotoRec tells you it found 9,000 files. This tells you which 40 are your photos, and why.**
 
-![FlashForensics dashboard](docs/dashboard.png)
+![FlashForensics dashboard](docs/screens/03-results-top.png)
 
 ---
+
+## Try it without owning a broken card
+
+Insert a card and it appears in the dashboard on its own, with a button to recover it. No card handy? The app builds its own patient: a 32 MB FAT32 volume filled with real photos, documents, archives and audio, then damaged six different ways, with a manifest recording exactly what was done.
+
+That manifest is why the demo is not a canned animation. Every run of the sample card is graded against the record of what was really done to it, in the app, row by row.
+
+![Every claim checked against ground truth](docs/screens/04-verification.png)
 
 ## The problem
 
@@ -108,7 +116,29 @@ cd backend && flashforensics serve
 cd frontend && npm install && npm run dev
 ```
 
-Open <http://localhost:3000>, paste the fixture path, and watch the agents run.
+Open <http://localhost:3000> and press **Recover the sample card**. Nothing else to configure.
+
+### On a card you actually have
+
+```bash
+flashforensics devices          # what is plugged in, and whether it can be read
+flashforensics analyze /dev/disk4
+```
+
+The same list appears in the dashboard, refreshed while the page is open, so a card inserted after the page loaded shows up on its own.
+
+Reading a raw device needs elevated permission on every operating system. When a card is detected but unreadable, the app says so and prints the command that fixes it, rather than pretending the card is not there. Nothing is ever written to the device: every open is read-only, and recovered files are written elsewhere.
+
+![Detected cards, the sample card, and file upload](docs/screens/01-start.png)
+
+### What the dashboard shows
+
+| | |
+|---|---|
+| ![](docs/screens/02-running.png) | **Live progress.** Five stages, each a different kind of work, with the log underneath. A run that stalls, stalls somewhere specific. |
+| ![](docs/screens/05-map.png) | **A map of the card.** Height is entropy, colour is what kind of data sits there, and recovered files are marked underneath so you can see where each came from. Real cards are mostly empty, so the view defaults to the occupied region rather than drawing a hairline against 60 GB of zeroes. |
+| ![](docs/screens/06-files-and-evidence.png) | **Results and the evidence behind them.** Every verdict lists the structural findings that produced it and the problems that downgraded it. Recovered images are drawn by the browser, which is also an independent check on the carve: a wrong extent does not render. |
+| ![](docs/screens/07-ask.png) | **Questions in plain language.** "Which photos are still good?" answered against this session's fragments, with citations. |
 
 ### With a language model
 
@@ -193,6 +223,11 @@ For Claude Desktop, add to `claude_desktop_config.json`:
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | Active providers and capabilities |
+| `GET` | `/api/devices` | Cards and drives attached to the host, and whether each is readable |
+| `POST` | `/api/sessions/from-device` | Open an attached card directly, with no imaging step |
+| `GET` | `/api/demo` | Describe the built-in sample card |
+| `POST` | `/api/sessions/demo` | Build the sample card and open a session on it |
+| `GET` | `/api/sessions/{id}/verification` | Grade a demo run against its ground-truth manifest |
 | `POST` | `/api/sessions` | Upload a disk image |
 | `POST` | `/api/sessions/from-path` | Register an image already on the server |
 | `POST` | `/api/sessions/{id}/analyze` | Start the pipeline |
@@ -209,7 +244,7 @@ Interactive docs at `/docs` once the server is running.
 
 ```bash
 cd backend
-pytest                                        # 68 tests
+pytest                                        # 80 tests
 python tools/benchmark.py                     # accuracy against ground truth
 python tests/api_smoke.py                     # HTTP surface, server must be running
 python tests/mcp_smoke.py                     # MCP server over stdio
@@ -239,6 +274,8 @@ Stated plainly, because a recovery tool that oversells itself is worse than one 
 - **Encrypted volumes are detected, not decrypted.** A LUKS or BitLocker container is identified as encrypted and stops there.
 - **Benchmarks run on generated images.** The corruption scenarios model real failure modes, but a physically failing controller produces read errors this cannot reproduce.
 - **No write support.** Deliberate. Nothing here modifies the image.
+- **A hosted deployment cannot read your card.** Browsers have no access to raw block devices, and a server in a data centre is not the machine your card is plugged into. The public demo runs the sample card and uploaded images; recovering real hardware means running it locally. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- **Device detection covers macOS, Linux and Windows** via `diskutil`, `lsblk` and `Get-Disk` respectively. Anything else falls back to uploading an image.
 
 ## Project layout
 
@@ -254,7 +291,8 @@ backend/
   tools/           make_fixture.py, benchmark.py
   tests/           pytest suite plus API and MCP smoke tests
 frontend/          Next.js dashboard
-docs/              ARCHITECTURE.md, WALKTHROUGH.md
+docs/              ARCHITECTURE.md, WALKTHROUGH.md, DEPLOYMENT.md
+render.yaml        API deployment blueprint
 ```
 
 ## License

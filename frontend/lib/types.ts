@@ -155,4 +155,82 @@ export interface HealthResponse {
   knowledge_base: { formats_indexed: number; embedding_model: string; semantic: boolean; note?: string };
   signatures: number;
   sessions_active: number;
+  device_detection?: DetectionEnvironment;
+}
+
+export interface DetectionEnvironment {
+  platform: string;
+  detector: string;
+  detector_available: boolean;
+  elevated: boolean;
+}
+
+/** One physical card or drive the server can currently see. */
+export interface DetectedDevice {
+  identifier: string;
+  path: string;
+  label: string;
+  size_bytes: number;
+  size_human: string;
+  removable: boolean;
+  internal: boolean;
+  filesystems: string[];
+  mount_points: string[];
+  readable: boolean;
+  reason: string;
+  protocol: string;
+  supported: boolean;
+  likely_card: boolean;
+  elevation_hint: string;
+  imaging_hint: string;
+}
+
+export interface DevicesResponse {
+  environment: DetectionEnvironment;
+  devices: DetectedDevice[];
+}
+
+export interface DemoInfo {
+  available: boolean;
+  reason?: string;
+  name?: string;
+  size_bytes?: number;
+  filesystem?: string;
+  planted_files?: number;
+  scenarios?: Record<string, number>;
+  blurb?: string;
+}
+
+/** A demo run graded against the record of what was done to the sample card. */
+export interface VerificationRow {
+  path: string;
+  scenario: string;
+  found: boolean;
+  expected_format: string;
+  detected_format: string | null;
+  expected_size: number;
+  detected_size: number | null;
+  expected_status: string;
+  detected_status: string | null;
+  format_ok: boolean;
+  extent_ok: boolean | null;
+  verdict_ok: boolean;
+}
+
+export interface VerificationResponse {
+  available: boolean;
+  reason?: string;
+  planted?: number;
+  found?: number;
+  recall?: number;
+  format_correct?: number;
+  format_accuracy?: number;
+  extent_exact?: number;
+  extent_scored?: number;
+  extent_accuracy?: number;
+  verdict_correct?: number;
+  verdict_accuracy?: number;
+  false_positives?: number;
+  fragments_reported?: number;
+  rows?: VerificationRow[];
 }

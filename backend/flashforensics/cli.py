@@ -183,6 +183,34 @@ def command_health(_args: argparse.Namespace) -> int:
     return 0
 
 
+def command_devices(args: argparse.Namespace) -> int:
+    """List attached cards and drives, and say which ones can be read."""
+    from .disk.devices import describe_environment, elevation_hint, imaging_hint, list_devices
+
+    environment = describe_environment()
+    if not environment["detector_available"]:
+        print(f"  device detection is not available on {environment['platform']}")
+        return 1
+
+    devices = list_devices(removable_only=args.removable)
+    if not devices:
+        print("  no disks detected")
+        return 0
+
+    for device in devices:
+        marker = "card" if (device.removable and not device.internal) else "disk"
+        state = "readable" if device.readable else f"NOT READABLE ({device.reason})"
+        filesystems = ", ".join(device.filesystems) or "unknown"
+        print(f"  [{marker}] {device.path}  {device.size_human:>10}  {device.label}")
+        print(f"          filesystem {filesystems}   {state}")
+        if not device.readable:
+            print(f"          fix: {elevation_hint(device.path)}")
+            print(f"          or:  {imaging_hint(device)}")
+    print()
+    print("  analyse one with:  flashforensics analyze <path>")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="flashforensics",
@@ -213,6 +241,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     mcp = subparsers.add_parser("mcp", help="start the MCP server on stdio")
     mcp.set_defaults(func=command_mcp)
+
+    devices = subparsers.add_parser("devices", help="list attached cards and drives")
+    devices.add_argument(
+        "--removable", action="store_true", help="only show removable media"
+    )
+    devices.set_defaults(func=command_devices)
 
     health = subparsers.add_parser("health", help="report what this install can do")
     health.set_defaults(func=command_health)

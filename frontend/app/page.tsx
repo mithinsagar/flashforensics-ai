@@ -6,23 +6,38 @@ import { AskPanel } from "@/components/AskPanel";
 import { EntropyMap } from "@/components/EntropyMap";
 import { FragmentDetail } from "@/components/FragmentDetail";
 import { FragmentTable } from "@/components/FragmentTable";
+import { StartPanel } from "@/components/StartPanel";
+import { VerificationPanel } from "@/components/VerificationPanel";
 import { api, formatBytes } from "@/lib/api";
-import type { AgentEvent, Fragment, HealthResponse, SessionDetail } from "@/lib/types";
+import type {
+  AgentEvent,
+  DetectedDevice,
+  Fragment,
+  HealthResponse,
+  SessionDetail,
+  SessionSummary,
+  VerificationResponse,
+} from "@/lib/types";
 
 export default function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sourceLabel, setSourceLabel] = useState<string>("");
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [fragments, setFragments] = useState<Fragment[]>([]);
+  const [verification, setVerification] = useState<VerificationResponse | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [imagePath, setImagePath] = useState("");
+  const [exported, setExported] = useState<string | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    api.health().then(setHealth).catch(() => setError("Backend is not reachable. Start the API on port 8000."));
+    api
+      .health()
+      .then(setHealth)
+      .catch(() => setError("The recovery engine is not running. Start it, then reload this page."));
     return () => sourceRef.current?.close();
   }, []);
 
@@ -31,6 +46,12 @@ export default function Dashboard() {
     setDetail(session);
     setFragments(list.fragments);
     setSelectedId((current) => current ?? list.fragments[0]?.fragment_id ?? null);
+    try {
+      const graded = await api.verification(id);
+      setVerification(graded.available ? graded : null);
+    } catch {
+      setVerification(null);
+    }
   }, []);
 
   /**
@@ -46,7 +67,9 @@ export default function Dashboard() {
       setEvents([]);
       setFragments([]);
       setDetail(null);
+      setVerification(null);
       setSelectedId(null);
+      setExported(null);
       setError(null);
 
       sourceRef.current?.close();
@@ -83,32 +106,61 @@ export default function Dashboard() {
     [loadResults],
   );
 
-  async function handleUpload(file: File) {
+  const begin = useCallback(
+    async (open: () => Promise<SessionSummary>, label: string, failure: string) => {
+      try {
+        setError(null);
+        setSourceLabel(label);
+        const session = await open();
+        setSessionId(session.session_id);
+        await startAnalysis(session.session_id);
+      } catch (caught) {
+        setSourceLabel("");
+        setError(caught instanceof Error ? caught.message : failure);
+      }
+    },
+    [startAnalysis],
+  );
+
+  const handleDevice = (device: DetectedDevice) =>
+    begin(() => api.createFromDevice(device.path), device.label, "that card could not be opened");
+
+  const handleDemo = () =>
+    begin(() => api.createDemo(), "Sample damaged card", "the sample card could not be built");
+
+  const handleUpload = (file: File) => begin(() => api.upload(file), file.name, "upload failed");
+
+  const handlePath = (path: string) =>
+    begin(() => api.createFromPath(path), path, "could not open that path");
+
+  async function handleExport() {
+    if (!sessionId) return;
     try {
-      setError(null);
-      const session = await api.upload(file);
-      setSessionId(session.session_id);
-      await startAnalysis(session.session_id);
+      const result = await api.exportAll(sessionId, "RECOVERABLE");
+      setExported(`${result.exported} files (${formatBytes(result.bytes)}) written to ${result.archive}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "upload failed");
+      setError(caught instanceof Error ? caught.message : "export failed");
     }
   }
 
-  async function handlePath() {
-    if (!imagePath.trim()) return;
-    try {
-      setError(null);
-      const session = await api.createFromPath(imagePath.trim());
-      setSessionId(session.session_id);
-      await startAnalysis(session.session_id);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "could not open that path");
-    }
+  function reset() {
+    sourceRef.current?.close();
+    setSessionId(null);
+    setSourceLabel("");
+    setDetail(null);
+    setFragments([]);
+    setVerification(null);
+    setEvents([]);
+    setSelectedId(null);
+    setExported(null);
+    setError(null);
+    setRunning(false);
   }
 
   const selected = fragments.find((fragment) => fragment.fragment_id === selectedId) ?? null;
   const percent = events.at(-1)?.percent ?? 0;
   const verdicts = detail?.verdict_stats;
+  const started = running || events.length > 0 || fragments.length > 0;
 
   return (
     <main className="mx-auto max-w-[1560px] p-4">
@@ -116,73 +168,68 @@ export default function Dashboard() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-slate-100">FlashForensics AI</h1>
           <p className="text-[11px] text-slate-500">
-            Agentic recovery for corrupted flash storage: filesystem parsing, entropy-guided carving,
-            evidence-based verdicts
+            Plug in a damaged card and get your files back, with the evidence for every call it makes
           </p>
         </div>
-        {health && (
-          <div className="flex items-center gap-3 font-mono text-[10px] text-slate-600">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              v{health.version}
-            </span>
-            <span>{health.signatures} signatures</span>
-            <span>{health.knowledge_base.formats_indexed} formats indexed</span>
-            <span title={health.llm.note ?? ""}>llm: {health.llm.provider}</span>
-            <span title={health.knowledge_base.note ?? ""}>
-              embed: {health.knowledge_base.semantic ? "minilm" : "lexical"}
-            </span>
-          </div>
-        )}
-      </header>
-
-      <section className="panel mb-4 p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="cursor-pointer rounded border border-ink-600 bg-ink-800 px-3 py-1.5 text-[12px] font-medium text-slate-200 transition-colors hover:bg-ink-700">
-            Upload a disk image
-            <input
-              type="file"
-              className="hidden"
-              disabled={running}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void handleUpload(file);
-              }}
-            />
-          </label>
-
-          <span className="text-[11px] text-slate-600">or analyse one already on the server</span>
-
-          <input
-            value={imagePath}
-            onChange={(event) => setImagePath(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && handlePath()}
-            placeholder="/path/to/card.img"
-            disabled={running}
-            className="min-w-[280px] flex-1 rounded border border-ink-700 bg-ink-950 px-2.5 py-1.5 font-mono text-[11px] outline-none placeholder:text-slate-600 focus:border-ink-600"
-          />
-          <button
-            onClick={handlePath}
-            disabled={running || !imagePath.trim()}
-            className="rounded border border-ink-600 bg-ink-800 px-3 py-1.5 text-[12px] text-slate-200 transition-colors hover:bg-ink-700 disabled:opacity-40"
-          >
-            {running ? "Analysing…" : "Analyse"}
-          </button>
-
-          {detail?.status === "complete" && (
+        <div className="flex items-center gap-3">
+          {started && (
             <button
-              onClick={() => sessionId && void api.exportAll(sessionId, "RECOVERABLE")}
-              className="rounded border border-emerald-700/50 bg-emerald-600/10 px-3 py-1.5 text-[12px] text-emerald-300 transition-colors hover:bg-emerald-600/20"
+              onClick={reset}
+              disabled={running}
+              className="rounded border border-ink-600 bg-ink-800 px-3 py-1.5 text-[12px] text-slate-200 transition-colors hover:bg-ink-700 disabled:opacity-40"
             >
-              Export recoverable
+              Start over
             </button>
           )}
+          {health && (
+            <div className="hidden items-center gap-3 font-mono text-[10px] text-slate-600 md:flex">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                v{health.version}
+              </span>
+              <span>{health.signatures} signatures</span>
+              <span>{health.knowledge_base.formats_indexed} formats indexed</span>
+              <span title={health.llm.note ?? ""}>llm: {health.llm.provider}</span>
+            </div>
+          )}
         </div>
+      </header>
 
-        {error && <div className="mt-2 text-[11px] text-red-400">{error}</div>}
-      </section>
+      {error && (
+        <div className="panel mb-4 border-l-2 border-l-red-600 p-3 text-[12px] text-red-300">{error}</div>
+      )}
 
-      {(running || events.length > 0) && (
+      {!started && (
+        <StartPanel
+          running={running}
+          onDevice={handleDevice}
+          onDemo={handleDemo}
+          onUpload={handleUpload}
+          onPath={handlePath}
+        />
+      )}
+
+      {started && (
+        <section className="panel mb-4 flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="min-w-0">
+            <div className="stat-label">Looking at</div>
+            <div className="truncate text-[13px] text-slate-200">{sourceLabel || detail?.image_name}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {detail?.status === "complete" && verdicts && verdicts.recoverable > 0 && (
+              <button
+                onClick={handleExport}
+                className="rounded border border-emerald-700/50 bg-emerald-600/15 px-3 py-1.5 text-[12px] text-emerald-200 transition-colors hover:bg-emerald-600/25"
+              >
+                Save all recovered files
+              </button>
+            )}
+          </div>
+          {exported && <div className="w-full font-mono text-[10px] text-emerald-400/80">{exported}</div>}
+        </section>
+      )}
+
+      {started && (
         <section className="panel mb-4 p-3">
           <AgentTimeline events={events} running={running} percent={percent} />
         </section>
@@ -197,29 +244,62 @@ export default function Dashboard() {
 
       {verdicts && (
         <section className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
-          <Stat label="Recoverable" value={verdicts.recoverable} tone="text-signal-recover" />
-          <Stat label="Partial" value={verdicts.partial} tone="text-signal-partial" />
-          <Stat label="Metadata only" value={verdicts.metadata_only} tone="text-signal-meta" />
-          <Stat label="Junk" value={verdicts.junk} tone="text-signal-junk" />
-          <Stat label="Data recovered" value={formatBytes(verdicts.bytes_recoverable)} tone="text-slate-200" />
           <Stat
-            label="Elapsed"
+            label="Fully recovered"
+            value={verdicts.recoverable}
+            tone="text-signal-recover"
+            hint="These files came back complete and should open normally."
+          />
+          <Stat
+            label="Partly damaged"
+            value={verdicts.partial}
+            tone="text-signal-partial"
+            hint="Some of the data survived; these may open with pieces missing."
+          />
+          <Stat
+            label="Name only"
+            value={verdicts.metadata_only}
+            tone="text-signal-meta"
+            hint="The card remembers these existed, but the contents are gone."
+          />
+          <Stat
+            label="Not real files"
+            value={verdicts.junk}
+            tone="text-signal-junk"
+            hint="Byte patterns that looked like files but failed their structure checks."
+          />
+          <Stat
+            label="Data recovered"
+            value={formatBytes(verdicts.bytes_recoverable)}
+            tone="text-slate-200"
+            hint="Total size of everything marked fully recovered."
+          />
+          <Stat
+            label="Time taken"
             value={detail?.elapsed_seconds ? `${detail.elapsed_seconds}s` : "-"}
             tone="text-slate-200"
+            hint="Wall-clock time for the whole five-stage analysis."
           />
         </section>
       )}
 
+      {verification && <VerificationPanel result={verification} />}
+
       {detail && detail.entropy.points.length > 0 && (
         <section className="panel mb-4">
           <div className="panel-header flex items-center justify-between">
-            <span>Volume entropy map</span>
+            <span>Map of the card</span>
             <span className="font-mono normal-case tracking-normal text-slate-600">
               {detail.filesystem} · {formatBytes(detail.image_size)} ·{" "}
               {detail.entropy.anomalies.length} anomalies
             </span>
           </div>
           <div className="p-3">
+            <p className="mb-2.5 text-[11px] leading-relaxed text-slate-500">
+              The card drawn end to end. Colour shows what kind of data sits at each position: empty
+              space, plain text, structured records, or the dense look of a photo or archive. Recovered
+              files are marked underneath, so you can see where on the card each one came from.
+            </p>
             <EntropyMap
               points={detail.entropy.points}
               detail={detail.entropy.detail}
@@ -235,7 +315,7 @@ export default function Dashboard() {
 
       {detail && detail.damage.length > 0 && (
         <section className="panel mb-4">
-          <div className="panel-header">Damage recorded while parsing</div>
+          <div className="panel-header">Problems found while reading the card</div>
           <ul className="divide-y divide-ink-850">
             {detail.damage.slice(0, 8).map((item, index) => (
               <li key={index} className="flex gap-3 px-4 py-2 text-[12px]">
@@ -257,7 +337,7 @@ export default function Dashboard() {
 
           <div className="flex h-[560px] flex-col gap-4">
             <div className="panel min-h-0 flex-1 overflow-hidden">
-              <div className="panel-header">Evidence</div>
+              <div className="panel-header">Why this verdict</div>
               <div className="h-[calc(100%-38px)]">
                 <FragmentDetail fragment={selected} sessionId={sessionId ?? ""} />
               </div>
@@ -275,26 +355,23 @@ export default function Dashboard() {
           </div>
         </section>
       )}
-
-      {!running && fragments.length === 0 && !error && (
-        <section className="panel p-10 text-center">
-          <p className="text-sm text-slate-400">Upload a disk image, or point at one on the server, to begin</p>
-          <p className="mx-auto mt-2 max-w-lg text-[11px] leading-relaxed text-slate-600">
-            Generate a damaged test card with{" "}
-            <code className="rounded bg-ink-850 px-1 py-0.5 font-mono">
-              python tools/make_fixture.py --output fixtures/card.img
-            </code>{" "}
-            and paste that path above.
-          </p>
-        </section>
-      )}
     </main>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string | number; tone: string }) {
+function Stat({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  tone: string;
+  hint?: string;
+}) {
   return (
-    <div className="panel px-3 py-2.5">
+    <div className="panel px-3 py-2.5" title={hint}>
       <div className="stat-label">{label}</div>
       <div className={`stat-value ${tone}`}>{value}</div>
     </div>

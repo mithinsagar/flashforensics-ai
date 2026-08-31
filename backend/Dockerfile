@@ -27,4 +27,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import httpx,sys; sys.exit(0 if httpx.get('http://127.0.0.1:8000/api/health', timeout=4).status_code==200 else 1)"
 
-CMD ["uvicorn", "flashforensics.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so a platform-supplied $PORT (Render, Railway, Fly) is honoured
+# while local runs keep the documented 8000.
+CMD uvicorn flashforensics.api.main:app --host 0.0.0.0 --port ${PORT:-8000}

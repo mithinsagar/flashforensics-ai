@@ -36,6 +36,8 @@ class Session:
     image_name: str
     image_size: int
     owns_image: bool = True
+    source: str = "upload"
+    truth: dict[str, Any] | None = None
     created_at: float = field(default_factory=time.time)
     status: str = "queued"
     error: str | None = None
@@ -52,6 +54,7 @@ class Session:
             "session_id": self.session_id,
             "image_name": self.image_name,
             "image_size": self.image_size,
+            "source": self.source,
             "created_at": self.created_at,
             "status": self.status,
             "error": self.error,

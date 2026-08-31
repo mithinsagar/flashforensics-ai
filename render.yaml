@@ -1,0 +1,39 @@
+# Backend deployment for the public demo.
+#
+# The API is a container rather than a serverless function on purpose. An
+# analysis holds an open memory map over a disk image, streams progress for as
+# long as the scan takes, and depends on a vector store with an ONNX runtime
+# behind it. None of that fits inside a function's package limit or its request
+# timeout, and pretending otherwise produces a demo that works on a 32 MB sample
+# and dies on anything real.
+#
+# The frontend is deployed separately on Vercel, which is the right host for it:
+# see docs/DEPLOYMENT.md.
+
+services:
+  - type: web
+    name: flashforensics-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # Where uploads, exports and the format index live inside the container.
+      - key: FF_WORKSPACE
+        value: /data
+
+      # Anyone can upload to a public demo, so the ceiling here is far lower
+      # than the local default of 8 GB. The sample card is the intended path.
+      - key: FF_MAX_UPLOAD_BYTES
+        value: "134217728"
+
+      # Set this to the deployed frontend's origin once Vercel has assigned one.
+      - key: FF_CORS_ORIGINS
+        value: '["https://flashforensics.vercel.app"]'
+
+      # Left unset deliberately. With no key the pipeline runs on its
+      # deterministic rule engine, which is what the published accuracy numbers
+      # were measured with, so the public demo reproduces them exactly.
+      - key: FF_LLM_PROVIDER
+        value: heuristic

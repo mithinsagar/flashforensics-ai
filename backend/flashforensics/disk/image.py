@@ -43,16 +43,41 @@ class DiskImage:
 
     def __init__(self, path: str | Path, sector_size: int = DEFAULT_SECTOR_SIZE):
         self.path = Path(path)
-        if not self.path.is_file():
+        self.is_device = _is_block_device(self.path)
+        if not self.path.is_file() and not self.is_device:
             raise DiskReadError(f"image not found: {self.path}")
         self.sector_size = sector_size
-        self.size = self.path.stat().st_size
         self.stats = ReadStats()
-        self._fh = open(self.path, "rb")
+        try:
+            self._fh = open(self.path, "rb", buffering=0 if self.is_device else -1)
+        except PermissionError as error:
+            raise DiskReadError(
+                f"permission denied reading {self.path}. Raw devices need elevated "
+                f"privileges: re-run with sudo, or image the device first."
+            ) from error
+        self.size = self._determine_size()
         try:
             self._mm = mmap.mmap(self._fh.fileno(), 0, access=mmap.ACCESS_READ)
-        except ValueError:
+        except (ValueError, OSError):
+            # Block devices frequently refuse mmap; seek/read is the fallback.
             self._mm = None
+
+    def _determine_size(self) -> int:
+        """Size in bytes, for regular files and for raw devices alike.
+
+        stat() reports zero for a block device on most platforms, so the length
+        has to come from seeking to the end of the descriptor instead.
+        """
+        if not self.is_device:
+            return self.path.stat().st_size
+        try:
+            size = os.lseek(self._fh.fileno(), 0, os.SEEK_END)
+            os.lseek(self._fh.fileno(), 0, os.SEEK_SET)
+        except OSError as error:
+            raise DiskReadError(f"could not determine the size of {self.path}: {error}") from error
+        if size <= 0:
+            raise DiskReadError(f"{self.path} reports a zero size; is the card still inserted?")
+        return size
 
     def __enter__(self) -> DiskImage:
         return self
@@ -96,12 +121,31 @@ class DiskImage:
         if self._mm is not None:
             data = self._mm[offset:end]
         else:
-            self._fh.seek(offset)
-            data = self._fh.read(end - offset)
+            data = self._read_at(offset, end - offset)
 
         self.stats.reads += 1
         self.stats.bytes_read += len(data)
         return data
+
+    def _read_at(self, offset: int, length: int) -> bytes:
+        """Unbuffered positional read that tolerates short returns.
+
+        A read() on a raw device can come back short at a device boundary or on a
+        failing sector without that being the end of the data, so the loop keeps
+        asking until it either has everything or the device genuinely stops.
+        """
+        chunks: list[bytes] = []
+        remaining = length
+        position = offset
+        while remaining > 0:
+            self._fh.seek(position)
+            piece = self._fh.read(remaining)
+            if not piece:
+                break
+            chunks.append(piece)
+            position += len(piece)
+            remaining -= len(piece)
+        return b"".join(chunks)
 
     def read_sector(self, lba: int, count: int = 1) -> bytes:
         return self.read(lba * self.sector_size, count * self.sector_size)
@@ -135,6 +179,17 @@ class DiskImage:
             "reads": self.stats.reads,
             "bytes_read": self.stats.bytes_read,
         }
+
+
+def _is_block_device(path: Path) -> bool:
+    """True for a raw disk node such as /dev/disk4 or /dev/sdb."""
+    try:
+        import stat as stat_module
+
+        mode = path.stat().st_mode
+        return stat_module.S_ISBLK(mode) or stat_module.S_ISCHR(mode)
+    except OSError:
+        return False
 
 
 def is_probably_zero(data: bytes, sample: int = 4096) -> bool:

@@ -26,7 +26,9 @@ from ..agents.graph import get_knowledge_base, run_analysis
 from ..agents.rag import RagAgent
 from ..agents.state import STAGE_LABELS, AgentEvent, Stage
 from ..config import get_settings
-from ..disk.image import DiskImage
+from ..demo import DemoUnavailable, demo_description, demo_image, score_run
+from ..disk.devices import describe_environment, elevation_hint, imaging_hint, list_devices
+from ..disk.image import DiskImage, DiskReadError
 from ..disk.signatures import SIGNATURES, mime_for
 from ..llm.provider import build_provider
 from .store import Session, store
@@ -62,6 +64,10 @@ class AnalyzePathRequest(BaseModel):
     path: str = Field(min_length=1, description="Server-side path to an image already on disk")
 
 
+class DeviceRequest(BaseModel):
+    path: str = Field(min_length=1, description="Raw device path, e.g. /dev/disk4")
+
+
 @app.get("/api/health")
 def health() -> dict:
     """Report what the server can actually do right now.
@@ -83,6 +89,7 @@ def health() -> dict:
         "signatures": len(SIGNATURES),
         "sessions_active": len(store.list()),
         "workspace": str(settings.workspace),
+        "device_detection": describe_environment(),
     }
 
 
@@ -105,6 +112,78 @@ def signatures() -> dict:
             for signature in SIGNATURES
         ],
     }
+
+
+@app.get("/api/devices")
+def devices(removable_only: bool = Query(default=False)) -> dict:
+    """Cards and drives currently attached to the machine running this server.
+
+    The dashboard polls this, so a card inserted while the page is open appears
+    without a refresh. Devices that cannot be read are still listed, with the
+    reason and the command that fixes it, because a card the user can see in
+    Finder but not here needs an explanation rather than an empty list.
+    """
+    found = list_devices(removable_only=removable_only)
+    return {
+        "environment": describe_environment(),
+        "devices": [
+            {
+                **device.to_dict(),
+                "elevation_hint": "" if device.readable else elevation_hint(device.path),
+                "imaging_hint": imaging_hint(device),
+            }
+            for device in found
+        ],
+    }
+
+
+@app.post("/api/sessions/from-device")
+def create_from_device(request: DeviceRequest) -> dict:
+    """Open an attached card directly, with no imaging step in between.
+
+    Reading the device in place is both faster and safer than copying it first:
+    nothing is written anywhere, and a 64 GB card does not need 64 GB of free
+    space before the user can find out whether their photos survived.
+    """
+    known = {device.path: device for device in list_devices()}
+    device = known.get(request.path)
+    if device is None:
+        raise HTTPException(404, f"no attached device at {request.path}")
+    if not device.readable:
+        raise HTTPException(
+            403,
+            f"{device.path} cannot be read: {device.reason}. {elevation_hint(device.path)}",
+        )
+
+    try:
+        with DiskImage(device.path) as probe:
+            size = probe.size
+    except DiskReadError as error:
+        raise HTTPException(400, str(error)) from error
+
+    session = store.create(Path(device.path), device.label or device.identifier, size, owns_image=False)
+    session.source = "device"
+    return session.summary()
+
+
+@app.get("/api/demo")
+def demo_info() -> dict:
+    """Describe the built-in sample card so the UI can offer it up front."""
+    return demo_description(settings)
+
+
+@app.post("/api/sessions/demo")
+def create_demo_session() -> dict:
+    """Build (or reuse) the sample damaged card and open a session on it."""
+    try:
+        image, truth = demo_image(settings)
+    except DemoUnavailable as error:
+        raise HTTPException(503, str(error)) from error
+
+    session = store.create(image, "Sample damaged card", image.stat().st_size, owns_image=False)
+    session.source = "demo"
+    session.truth = truth
+    return session.summary()
 
 
 @app.post("/api/sessions")
@@ -292,6 +371,29 @@ def get_session(session_id: str) -> dict:
         "report": state.get("report", ""),
         "provider": state.get("provider_health", {}),
     }
+
+
+@app.get("/api/sessions/{session_id}/verification")
+def verification(session_id: str) -> dict:
+    """Grade a demo run against the record of what was done to the sample card.
+
+    Only demo sessions can be scored, because only they come with a manifest of
+    the truth. A real card has no answer key, which is the whole reason the
+    sample card exists.
+    """
+    session = store.get(session_id)
+    if session is None:
+        raise HTTPException(404, "unknown session")
+    if session.truth is None:
+        return {"available": False, "reason": "this session has no ground truth to check against"}
+    if session.status != "complete":
+        raise HTTPException(409, "analysis has not finished for this session")
+
+    try:
+        result = score_run(session.truth, session.state)
+    except DemoUnavailable as error:
+        return {"available": False, "reason": str(error)}
+    return {"available": True, **result}
 
 
 @app.get("/api/sessions/{session_id}/files")

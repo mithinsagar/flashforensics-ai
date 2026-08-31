@@ -13,11 +13,11 @@ const AGENT_COLORS: Record<string, string> = {
 };
 
 const PIPELINE = [
-  { agent: "scanner", label: "Scan", detail: "Parse the filesystem, map entropy" },
-  { agent: "carver", label: "Carve", detail: "Extract fragments from lost regions" },
-  { agent: "classifier", label: "Classify", detail: "Resolve what each fragment is" },
-  { agent: "adjudicator", label: "Adjudicate", detail: "Judge recoverability" },
-  { agent: "reporter", label: "Report", detail: "Index and summarise" },
+  { agent: "scanner", label: "Read the card", detail: "Find the index and map where data sits" },
+  { agent: "carver", label: "Pull files out", detail: "Recover data the index has lost" },
+  { agent: "classifier", label: "Identify them", detail: "Work out what each recovered file is" },
+  { agent: "adjudicator", label: "Check condition", detail: "Decide what survived and what did not" },
+  { agent: "reporter", label: "Summarise", detail: "Explain what happened to this card" },
 ];
 
 interface Props {

@@ -49,6 +49,28 @@ def main() -> int:
     if health["status"] != "ok":
         failures.append("health endpoint did not report ok")
 
+    # Hardware detection: what is asserted is the shape and the honesty of the
+    # answer, since no particular device can be assumed on a test machine.
+    attached = call(args.base, "/api/devices")
+    readable = sum(1 for device in attached["devices"] if device["readable"])
+    print(
+        f"devices          {len(attached['devices'])} found, {readable} readable "
+        f"via {attached['environment']['detector']}"
+    )
+    for device in attached["devices"]:
+        if not device["readable"] and not device["reason"]:
+            failures.append(f"{device['path']} is unreadable with no reason given")
+        if not device.get("imaging_hint"):
+            failures.append(f"{device['path']} carries no imaging hint")
+
+    demo = call(args.base, "/api/demo")
+    print(
+        f"demo card        available={demo['available']} "
+        f"planted={demo.get('planted_files')} scenarios={len(demo.get('scenarios', {}))}"
+    )
+    if not demo["available"]:
+        failures.append(f"sample card unavailable: {demo.get('reason')}")
+
     session = call(args.base, "/api/sessions/from-path", "POST", {"path": str(image)})
     session_id = session["session_id"]
     print(f"session          {session_id}  ({session['image_size'] / 1048576:.0f} MB)")
@@ -128,6 +150,35 @@ def main() -> int:
 
     call(args.base, f"/api/sessions/{session_id}", "DELETE")
     print("cleanup          session deleted")
+
+    # The demo path end to end, including the grading the dashboard shows. This
+    # is the route a visitor to the public demo takes, so it is worth a check
+    # that does not depend on a fixture path existing on the server.
+    if demo["available"]:
+        demo_session = call(args.base, "/api/sessions/demo", "POST")["session_id"]
+        call(args.base, f"/api/sessions/{demo_session}/analyze", "POST")
+        with urllib.request.urlopen(
+            urllib.request.Request(f"{args.base}/api/sessions/{demo_session}/stream"), timeout=600
+        ) as stream:
+            for line in stream:
+                text = line.decode().strip()
+                if text.startswith("data:") and '"stage": "complete"' in text.replace('":', '": '):
+                    break
+                if text.startswith("data:") and '"complete"' in text:
+                    break
+
+        graded = call(args.base, f"/api/sessions/{demo_session}/verification")
+        if not graded.get("available"):
+            failures.append(f"demo run could not be graded: {graded.get('reason')}")
+        else:
+            print(
+                f"\nverification     recall={graded['recall']:.0%} "
+                f"format={graded['format_accuracy']:.0%} extent={graded['extent_accuracy']:.0%} "
+                f"verdict={graded['verdict_accuracy']:.0%} false-positives={graded['false_positives']}"
+            )
+            if graded["recall"] < 1.0 or graded["false_positives"] > 0:
+                failures.append("demo run did not reproduce the published accuracy")
+        call(args.base, f"/api/sessions/{demo_session}", "DELETE")
 
     print()
     if failures:

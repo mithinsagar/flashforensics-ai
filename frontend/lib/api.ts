@@ -1,10 +1,13 @@
 import type {
   AskResponse,
+  DemoInfo,
+  DevicesResponse,
   Fragment,
   HealthResponse,
   SessionDetail,
   SessionSummary,
   VerdictStatus,
+  VerificationResponse,
 } from "./types";
 
 export const API_BASE =
@@ -39,6 +42,21 @@ export const api = {
   health: () => request<HealthResponse>("/api/health"),
 
   listSessions: () => request<{ sessions: SessionSummary[] }>("/api/sessions"),
+
+  devices: () => request<DevicesResponse>("/api/devices"),
+
+  createFromDevice: (path: string) =>
+    request<SessionSummary>("/api/sessions/from-device", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
+
+  demoInfo: () => request<DemoInfo>("/api/demo"),
+
+  createDemo: () => request<SessionSummary>("/api/sessions/demo", { method: "POST" }),
+
+  verification: (sessionId: string) =>
+    request<VerificationResponse>(`/api/sessions/${sessionId}/verification`),
 
   createFromPath: (path: string) =>
     request<SessionSummary>("/api/sessions/from-path", {
@@ -107,27 +125,47 @@ export function formatHex(offset: number): string {
   return `0x${offset.toString(16).toUpperCase().padStart(8, "0")}`;
 }
 
-export const STATUS_STYLES: Record<VerdictStatus, { label: string; color: string; bg: string; border: string }> = {
+/**
+ * Verdict presentation.
+ *
+ * `label` is the plain-English name a person reads first and `meaning` is the
+ * sentence that tells them what to do about it. The internal names are kept in
+ * `code` because the API, the CLI and the exported reports all use them, and a
+ * user who reads one and then the other should not have to work out that
+ * "Partial" and "PARTIAL" are the same thing.
+ */
+export const STATUS_STYLES: Record<
+  VerdictStatus,
+  { label: string; code: string; meaning: string; color: string; bg: string; border: string }
+> = {
   RECOVERABLE: {
-    label: "Recoverable",
+    label: "Fully recovered",
+    code: "RECOVERABLE",
+    meaning: "This file came back complete and should open normally.",
     color: "text-signal-recover",
     bg: "bg-signal-recover/10",
     border: "border-signal-recover/30",
   },
   PARTIAL: {
-    label: "Partial",
+    label: "Partly damaged",
+    code: "PARTIAL",
+    meaning: "Some of this file survived. It may open with parts missing, or not at all.",
     color: "text-signal-partial",
     bg: "bg-signal-partial/10",
     border: "border-signal-partial/30",
   },
   METADATA_ONLY: {
-    label: "Metadata only",
+    label: "Name only",
+    code: "METADATA_ONLY",
+    meaning: "The card still remembers this file existed, but its contents are gone.",
     color: "text-signal-meta",
     bg: "bg-signal-meta/10",
     border: "border-signal-meta/30",
   },
   JUNK: {
-    label: "Junk",
+    label: "Not a real file",
+    code: "JUNK",
+    meaning: "This looked like a file at first glance but the evidence says otherwise.",
     color: "text-signal-junk",
     bg: "bg-signal-junk/10",
     border: "border-signal-junk/30",

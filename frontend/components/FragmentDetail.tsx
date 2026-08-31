@@ -1,7 +1,42 @@
 "use client";
 
+import { useState } from "react";
 import { STATUS_STYLES, api, formatBytes, formatHex } from "@/lib/api";
 import type { Fragment } from "@/lib/types";
+
+/** Formats a browser can draw without help, so the recovered bytes can be shown. */
+const VIEWABLE = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"]);
+
+/**
+ * The recovered photo itself.
+ *
+ * This is the only part of the evidence panel that needs no explaining: a person
+ * looking for their pictures wants to see the picture, and a half-drawn image
+ * with a grey band across the bottom communicates "partially damaged" better
+ * than any verdict label can. The browser decoding it is also an independent
+ * check on the carve — if the extent were wrong by a byte, this would not render.
+ */
+function Preview({ fragment, sessionId }: Props & { fragment: Fragment }) {
+  const [failed, setFailed] = useState(false);
+  const format = (fragment.classification?.format ?? fragment.format_guess ?? "").toLowerCase();
+
+  if (failed || !VIEWABLE.has(format)) return null;
+
+  return (
+    <div className="overflow-hidden rounded border border-ink-700 bg-ink-950">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={api.downloadUrl(sessionId, fragment.fragment_id)}
+        alt={fragment.source_path ?? `recovered ${format}`}
+        onError={() => setFailed(true)}
+        className="mx-auto max-h-52 w-auto object-contain"
+      />
+      <div className="border-t border-ink-800 px-2 py-1 text-center text-[10px] text-slate-600">
+        the recovered bytes, drawn by your browser
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   fragment: Fragment | null;
@@ -82,6 +117,8 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
             <p className="mt-2.5 text-[12px] leading-relaxed text-slate-300">{verdict.explanation}</p>
           )}
         </div>
+
+        <Preview fragment={fragment} sessionId={sessionId} />
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-y border-ink-800 py-3 text-[11px]">
           <Field label="Format" value={`${classification?.format ?? fragment.format_guess} (${fragment.category})`} />
