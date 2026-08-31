@@ -117,13 +117,13 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
     return points.map((point, index) => ({
       x: index * barWidth,
       w: Math.max(barWidth, 0.5),
-      color: BAND_COLORS[point.band] ?? "#3d5a80",
+      color: BAND_COLORS[point.band] ?? "#5fc9df",
     }));
   }, [points]);
 
   if (points.length === 0) {
     return (
-      <div className="flex h-[180px] items-center justify-center text-sm text-slate-600">
+      <div className="flex h-[180px] items-center justify-center text-sm text-faint">
         The entropy map appears once the scan reaches the volume
       </div>
     );
@@ -132,8 +132,8 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
   return (
     <div className="relative">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-slate-600">Whole volume</span>
-        <span className="font-mono text-[10px] text-slate-600">
+        <span className="text-[10px] uppercase tracking-wider text-faint">Whole volume</span>
+        <span className="font-mono text-[10px] text-faint">
           {(occupied.ratio * 100).toFixed(1)}% holds data
         </span>
         {canZoom && (
@@ -141,7 +141,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
             <button
               onClick={() => setZoomed(true)}
               className={`px-2 py-0.5 text-[10px] transition-colors ${
-                zoomed ? "bg-ink-700 text-slate-200" : "text-slate-500 hover:text-slate-300"
+                zoomed ? "bg-ink-700 text-bone" : "text-dim hover:text-ash"
               }`}
             >
               Occupied region
@@ -149,7 +149,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
             <button
               onClick={() => setZoomed(false)}
               className={`px-2 py-0.5 text-[10px] transition-colors ${
-                !zoomed ? "bg-ink-700 text-slate-200" : "text-slate-500 hover:text-slate-300"
+                !zoomed ? "bg-ink-700 text-bone" : "text-dim hover:text-ash"
               }`}
             >
               Full volume
@@ -160,11 +160,11 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
 
       <svg
         viewBox={`0 0 ${WIDTH} ${OVERVIEW_HEIGHT}`}
-        className="w-full cursor-pointer"
+        className="w-full cursor-pointer rounded-sm ring-1 ring-white/[0.07]"
         preserveAspectRatio="none"
         onClick={() => canZoom && setZoomed((current) => !current)}
       >
-        <rect x={0} y={0} width={WIDTH} height={OVERVIEW_HEIGHT} fill="#12151c" />
+        <rect x={0} y={0} width={WIDTH} height={OVERVIEW_HEIGHT} fill="#1c1815" />
         {overviewBands.map((band, index) => (
           <rect key={index} x={band.x} y={0} width={band.w} height={OVERVIEW_HEIGHT} fill={band.color} />
         ))}
@@ -175,7 +175,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
               y={0}
               width={(view.start / maxOffset) * WIDTH}
               height={OVERVIEW_HEIGHT}
-              fill="#08090c"
+              fill="#060505"
               opacity={0.66}
             />
             <rect
@@ -183,7 +183,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
               y={0}
               width={WIDTH - (view.end / maxOffset) * WIDTH}
               height={OVERVIEW_HEIGHT}
-              fill="#08090c"
+              fill="#060505"
               opacity={0.66}
             />
             <rect
@@ -192,16 +192,16 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
               width={Math.max(((view.end - view.start) / maxOffset) * WIDTH, 2)}
               height={OVERVIEW_HEIGHT - 1}
               fill="none"
-              stroke="#7aa2f7"
-              strokeWidth={1.2}
+              stroke="#f0a92b"
+              strokeWidth={1.4}
             />
           </>
         )}
       </svg>
 
-      <div className="mb-1 mt-2 flex items-baseline justify-between font-mono text-[10px] text-slate-600">
+      <div className="mb-1 mt-2 flex items-baseline justify-between font-mono text-[10px] text-faint">
         <span>{formatHex(view.start)}</span>
-        <span className="text-slate-500">
+        <span className="text-dim">
           showing {formatBytes(span)} of {formatBytes(maxOffset)}
         </span>
         <span>{formatHex(view.end)}</span>
@@ -220,7 +220,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
             x2={WIDTH}
             y1={HEIGHT - 26 - (level / 8) * (HEIGHT - 26)}
             y2={HEIGHT - 26 - (level / 8) * (HEIGHT - 26)}
-            stroke="#1c2130"
+            stroke="#241f1c"
             strokeWidth={1}
           />
         ))}
@@ -232,7 +232,7 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
             y={HEIGHT - 26 - h}
             width={w}
             height={h}
-            fill={BAND_COLORS[point.band] ?? "#3d5a80"}
+            fill={BAND_COLORS[point.band] ?? "#5fc9df"}
             opacity={0.92}
             onMouseEnter={() => setHover({ point, x })}
           />
@@ -245,22 +245,22 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
             x2={x}
             y1={0}
             y2={HEIGHT - 26}
-            stroke={anomaly.severity === "high" ? "#f5a524" : "#7aa2f7"}
+            stroke={anomaly.severity === "high" ? "#f0a92b" : "#5fc9df"}
             strokeWidth={0.8}
             opacity={0.3}
           />
         ))}
 
-        <line x1={0} x2={WIDTH} y1={HEIGHT - 26} y2={HEIGHT - 26} stroke="#323a4c" strokeWidth={1} />
+        <line x1={0} x2={WIDTH} y1={HEIGHT - 26} y2={HEIGHT - 26} stroke="#3b332d" strokeWidth={1} />
 
         {markers.map(({ fragment, x, w }) => {
           const isSelected = fragment.fragment_id === selectedId;
           const color =
             fragment.verdict?.status === "RECOVERABLE"
-              ? "#3ddc97"
+              ? "#4bd894"
               : fragment.verdict?.status === "PARTIAL"
-                ? "#f5a524"
-                : "#7aa2f7";
+                ? "#f0a92b"
+                : "#5fc9df";
           return (
             <rect
               key={fragment.fragment_id}
@@ -288,21 +288,21 @@ export function EntropyMap({ points, detail, anomalies, fragments, imageSize, se
           className="pointer-events-none absolute top-14 z-10 rounded border border-ink-600 bg-ink-850 px-2.5 py-1.5 font-mono text-[11px] shadow-xl"
           style={{ left: `${Math.min((hover.x / WIDTH) * 100, 82)}%` }}
         >
-          <div className="text-slate-300">{formatHex(hover.point.offset)}</div>
-          <div className="text-slate-500">
+          <div className="text-ash">{formatHex(hover.point.offset)}</div>
+          <div className="text-dim">
             {hover.point.mean.toFixed(2)} bits · {hover.point.band}
           </div>
         </div>
       )}
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-dim">
         {Object.entries(BAND_COLORS).map(([band, color]) => (
           <span key={band} className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-sm" style={{ background: color }} />
             {band}
           </span>
         ))}
-        <span className="ml-auto text-slate-600">
+        <span className="ml-auto text-faint">
           bar height is entropy, 0 to 8 bits per byte · markers below the axis are recovered files
         </span>
       </div>

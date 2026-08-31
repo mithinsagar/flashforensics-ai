@@ -240,6 +240,55 @@ class TestRagAgent:
         assert answer["retrieved"] == 0
         assert answer["citations"] == []
 
+    def test_many_sessions_in_one_process_keep_working(self):
+        """The second visitor to a running server must fare as well as the first.
+
+        Each analysis builds a fragment index, and when each one also built its
+        own Chroma client the early runs passed and a later one failed outright
+        with a tenant error — a bug that hides from any test that only ever runs
+        a single analysis, and that a deployed demo hits almost immediately.
+        """
+        fragment = {
+            "fragment_id": "abcdef123456",
+            "offset": 0,
+            "length": 1024,
+            "sector_start": 0,
+            "format_guess": "jpg",
+            "category": "image",
+            "entropy": 7.1,
+            "verdict": {"status": "RECOVERABLE", "recoverable": True, "explanation": "complete"},
+        }
+
+        for run in range(8):
+            agent = RagAgent(f"pytest-many-{run}", HeuristicProvider())
+            assert agent.ingest([fragment]) == 1
+            assert agent.ask("which images survived")["retrieved"] > 0
+            agent.close()
+
+    def test_each_session_only_sees_its_own_fragments(self):
+        """Sharing one client must not leak one analysis into another's answers."""
+        first = RagAgent("pytest-isolation-a", HeuristicProvider())
+        first.ingest(
+            [
+                {
+                    "fragment_id": "aaaaaaaaaaaa",
+                    "offset": 0,
+                    "length": 512,
+                    "sector_start": 0,
+                    "format_guess": "jpg",
+                    "category": "image",
+                    "entropy": 7.0,
+                    "verdict": {"status": "RECOVERABLE", "recoverable": True, "explanation": "ok"},
+                }
+            ]
+        )
+
+        second = RagAgent("pytest-isolation-b", HeuristicProvider())
+        assert second.ask("which images survived")["retrieved"] == 0
+
+        first.close()
+        second.close()
+
     def test_fragment_description_carries_searchable_terms(self, analysis):
         state, _ = analysis
         fragment = next(f for f in state["fragments"] if f["category"] == "image")

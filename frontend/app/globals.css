@@ -1,46 +1,287 @@
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/space-grotesk/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Three typefaces, each doing a job the other two cannot.
+ *
+ * Instrument Serif carries the headlines because this is a tool that produces
+ * evidence, and evidence reads as a document rather than as a dashboard. Space
+ * Grotesk handles the interface: geometric enough to sit beside data, odd enough
+ * in its details that the page does not look like every other dark SaaS screen.
+ * JetBrains Mono holds anything measured — offsets, hashes, byte counts — where
+ * digits must line up and a zero must never be an O.
+ *
+ * All three are bundled rather than fetched from a CDN, so the design renders
+ * identically on a hosted demo, on a locked-down forensics workstation with no
+ * egress, and in the screenshots in the README.
+ */
 :root {
   color-scheme: dark;
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-sans: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --edge: rgba(255, 226, 190, 0.075);
+  --edge-strong: rgba(255, 226, 190, 0.14);
+  --gold: 240 169 43;
+  --scan: 63 211 216;
 }
 
-html,
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
-  background: #08090c;
-  color: #d5dae4;
+  font-family: var(--font-sans);
+  background-color: #060505;
+  color: #f4efe8;
+  /* Two soft pools of light, gold at the top left and cold at the right, so the
+     page has a direction of illumination instead of being uniformly flat. */
+  background-image:
+    radial-gradient(900px 620px at 12% -8%, rgba(240, 169, 43, 0.09), transparent 68%),
+    radial-gradient(760px 560px at 92% 4%, rgba(63, 211, 216, 0.055), transparent 66%),
+    radial-gradient(1100px 800px at 50% 108%, rgba(242, 100, 58, 0.05), transparent 70%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(240, 169, 43, 0.3);
+  color: #fff;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #323a4c transparent;
+  scrollbar-color: #3b332d transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #323a4c;
-  border-radius: 4px;
+  background: #2a2421;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3b332d;
+  background-clip: padding-box;
 }
 
 @layer components {
+  /* ---------- surfaces ---------- */
+
+  /**
+   * A panel is a lit surface, not a box with a border. The inset highlight along
+   * the top edge is the whole trick: it reads as a physical edge catching the
+   * light from above, which is what stops a dark interface from looking like
+   * flat rectangles of slightly different greys.
+   */
   .panel {
-    @apply rounded-lg border border-ink-700 bg-ink-900;
+    @apply relative rounded-xl;
+    background: linear-gradient(180deg, rgba(30, 26, 23, 0.62), rgba(12, 11, 10, 0.86));
+    border: 1px solid var(--edge);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 214, 0.05),
+      0 24px 60px -40px rgba(0, 0, 0, 0.95);
+  }
+
+  .panel-flush {
+    @apply relative rounded-xl;
+    background: rgba(10, 9, 8, 0.7);
+    border: 1px solid var(--edge);
+  }
+
+  .glass {
+    @apply relative rounded-2xl;
+    background: linear-gradient(180deg, rgba(34, 29, 26, 0.72), rgba(11, 10, 9, 0.82));
+    backdrop-filter: blur(18px) saturate(120%);
+    -webkit-backdrop-filter: blur(18px) saturate(120%);
+    border: 1px solid var(--edge-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 214, 0.07),
+      0 40px 80px -50px rgba(0, 0, 0, 1);
   }
 
   .panel-header {
-    @apply border-b border-ink-700 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500;
+    @apply flex items-center justify-between px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-dim;
+    border-bottom: 1px solid var(--edge);
   }
 
-  .stat-value {
-    @apply font-mono text-2xl font-semibold tabular-nums;
+  .hairline {
+    border-color: var(--edge);
+  }
+
+  /* ---------- type ---------- */
+
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-widest text-gold-500;
+  }
+
+  .display {
+    font-family: var(--font-display);
+    @apply font-normal leading-[0.94] tracking-[-0.015em];
+    text-wrap: balance;
   }
 
   .stat-label {
-    @apply text-[10px] uppercase tracking-[0.14em] text-slate-500;
+    @apply font-mono text-[10px] uppercase tracking-[0.16em] text-dim;
+  }
+
+  .stat-value {
+    @apply font-mono text-2xl font-medium tabular-nums tracking-tight;
+  }
+
+  .lede {
+    @apply text-[15px] leading-relaxed text-ash;
+    text-wrap: pretty;
+  }
+
+  /* Gold that behaves like light on metal rather than flat paint. */
+  .text-salvage {
+    background: linear-gradient(96deg, #ffe9b8 0%, #f0a92b 46%, #cf8712 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ---------- controls ---------- */
+
+  .btn-gold {
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-4 py-2.5 font-sans text-[13px] font-medium text-ink-990 transition-all duration-200;
+    background: linear-gradient(180deg, #ffd07f 0%, #f0a92b 52%, #d38c14 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 10px 28px -12px rgba(240, 169, 43, 0.55);
+  }
+
+  .btn-gold:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 16px 36px -12px rgba(240, 169, 43, 0.7);
+  }
+
+  .btn-gold:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-gold:disabled {
+    @apply cursor-not-allowed opacity-40;
+    box-shadow: none;
+  }
+
+  /* The shimmer that crosses the button on hover is the same gesture as the scan
+     line in the hero: a read head passing over a surface. */
+  .btn-gold::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.55) 50%, transparent 80%);
+    transform: translateX(-120%);
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-gold:hover:not(:disabled)::after {
+    transform: translateX(120%);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 font-sans text-[13px] text-bone/85 transition-all duration-200;
+    background: rgba(255, 236, 214, 0.035);
+    border: 1px solid var(--edge);
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 236, 214, 0.07);
+    border-color: var(--edge-strong);
+    color: #f4efe8;
+  }
+
+  .btn-ghost:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .field {
+    @apply w-full rounded-lg bg-ink-990/80 px-3 py-2 font-mono text-[12px] text-bone outline-none transition-colors placeholder:text-faint;
+    border: 1px solid var(--edge);
+  }
+
+  .field:focus {
+    border-color: rgba(240, 169, 43, 0.45);
+    box-shadow: 0 0 0 3px rgba(240, 169, 43, 0.08);
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider;
+    border: 1px solid var(--edge);
+    background: rgba(255, 236, 214, 0.03);
+  }
+
+  /* ---------- motion primitives ---------- */
+
+  .lift {
+    @apply transition-all duration-300;
+  }
+
+  .lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--edge-strong);
+  }
+
+  /* A hairline of light travelling along the top edge of a working panel. */
+  .live-edge::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(var(--gold) / 0.9), transparent);
+    animation: sweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+@layer utilities {
+  /* Film grain over the whole page. Dark interfaces band badly on wide gradients
+     and grain is the cheapest honest fix, as well as the thing that keeps this
+     from looking like flat vector artwork. */
+  .grain::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.032;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .mask-fade-r {
+    mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  }
+
+  .mask-fade-b {
+    mask-image: linear-gradient(180deg, #000 55%, transparent);
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

@@ -67,7 +67,7 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
         {turns.length === 0 && (
           <div className="space-y-2">
-            <p className="text-[11px] leading-relaxed text-slate-500">
+            <p className="text-[11px] leading-relaxed text-dim">
               Ask about what was recovered. Answers cite the fragments they came from.
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -76,7 +76,7 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
                   key={suggestion}
                   disabled={!ready}
                   onClick={() => submit(suggestion)}
-                  className="rounded border border-ink-700 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-ink-600 hover:text-slate-200 disabled:opacity-40"
+                  className="rounded border border-ink-700 px-2 py-1 text-[11px] text-ash transition-colors hover:border-ink-600 hover:text-bone disabled:opacity-40"
                 >
                   {suggestion}
                 </button>
@@ -87,12 +87,12 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
 
         {turns.map((turn, index) => (
           <div key={index} className="space-y-1.5">
-            <div className="text-[12px] font-medium text-slate-200">{turn.question}</div>
+            <div className="text-[12px] font-medium text-bone">{turn.question}</div>
             {turn.error ? (
-              <div className="text-[11px] text-red-400">{turn.error}</div>
+              <div className="text-[11px] text-ember-400">{turn.error}</div>
             ) : turn.response ? (
               <>
-                <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-slate-400">
+                <div className="whitespace-pre-wrap text-[12px] leading-relaxed text-ash">
                   {turn.response.answer}
                 </div>
                 {turn.response.citations.length > 0 && (
@@ -101,7 +101,7 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
                       <button
                         key={citation.fragment_id}
                         onClick={() => onCite(citation.fragment_id)}
-                        className="rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:border-sky-600 hover:text-sky-300"
+                        className="rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] text-ash transition-colors hover:border-scan-500 hover:text-scan-300"
                         title={`${citation.verdict} · similarity ${citation.similarity}`}
                       >
                         {citation.format} {formatBytes(citation.length)}
@@ -111,7 +111,7 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
                 )}
               </>
             ) : (
-              <div className="text-[11px] text-slate-600">Searching this session's fragments…</div>
+              <div className="text-[11px] text-faint">Searching this session's fragments…</div>
             )}
           </div>
         ))}
@@ -129,7 +129,7 @@ export function AskPanel({ sessionId, ready, onCite }: Props) {
           onChange={(event) => setQuestion(event.target.value)}
           disabled={!ready || busy}
           placeholder={ready ? "Ask about the recovered files" : "Finish an analysis first"}
-          className="w-full rounded border border-ink-700 bg-ink-950 px-2.5 py-2 text-[12px] outline-none placeholder:text-slate-600 focus:border-ink-600 disabled:opacity-50"
+          className="w-full rounded border border-ink-700 bg-ink-950 px-2.5 py-2 text-[12px] outline-none placeholder:text-faint focus:border-ink-600 disabled:opacity-50"
         />
       </form>
     </div>

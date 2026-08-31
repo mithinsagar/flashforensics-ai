@@ -31,7 +31,7 @@ function Preview({ fragment, sessionId }: Props & { fragment: Fragment }) {
         onError={() => setFailed(true)}
         className="mx-auto max-h-52 w-auto object-contain"
       />
-      <div className="border-t border-ink-800 px-2 py-1 text-center text-[10px] text-slate-600">
+      <div className="border-t border-ink-800 px-2 py-1 text-center text-[10px] text-faint">
         the recovered bytes, drawn by your browser
       </div>
     </div>
@@ -53,8 +53,8 @@ function HexPreview({ hex }: { hex: string }) {
     .join("");
   return (
     <div className="rounded border border-ink-700 bg-ink-950 px-2.5 py-2 font-mono text-[11px]">
-      <div className="tracking-wider text-slate-300">{bytes.join(" ").toUpperCase()}</div>
-      <div className="mt-1 text-slate-600">|{ascii}|</div>
+      <div className="tracking-wider text-ash">{bytes.join(" ").toUpperCase()}</div>
+      <div className="mt-1 text-faint">|{ascii}|</div>
     </div>
   );
 }
@@ -71,7 +71,7 @@ function HexPreview({ hex }: { hex: string }) {
 export function FragmentDetail({ fragment, sessionId }: Props) {
   if (!fragment) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-600">
+      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-faint">
         Select a fragment to see the evidence behind its verdict
       </div>
     );
@@ -103,10 +103,10 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
         <div>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-100">
+              <div className="truncate text-sm font-semibold text-bone">
                 {fragment.source_path ?? `Carved ${fragment.format_guess}`}
               </div>
-              <div className="mt-0.5 font-mono text-[11px] text-slate-600">{fragment.fragment_id}</div>
+              <div className="mt-0.5 font-mono text-[11px] text-faint">{fragment.fragment_id}</div>
             </div>
             <span className={`shrink-0 rounded border px-2 py-1 text-[11px] ${style.bg} ${style.border} ${style.color}`}>
               {style.label}
@@ -114,7 +114,7 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
           </div>
 
           {verdict?.explanation && (
-            <p className="mt-2.5 text-[12px] leading-relaxed text-slate-300">{verdict.explanation}</p>
+            <p className="mt-2.5 text-[12px] leading-relaxed text-ash">{verdict.explanation}</p>
           )}
         </div>
 
@@ -138,9 +138,9 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
 
         {classification?.reasoning && (
           <Section title={`Identification (${classification.method}, confidence ${classification.confidence})`}>
-            <p className="text-[12px] leading-relaxed text-slate-400">{classification.reasoning}</p>
+            <p className="text-[12px] leading-relaxed text-ash">{classification.reasoning}</p>
             {classification.alternatives?.length > 0 && (
-              <p className="mt-1.5 text-[11px] text-slate-600">
+              <p className="mt-1.5 text-[11px] text-faint">
                 Ruled out: {classification.alternatives.join(", ")}
               </p>
             )}
@@ -151,8 +151,8 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
           <Section title="Structural findings">
             <ul className="space-y-1">
               {validation.evidence.map((item, index) => (
-                <li key={index} className="flex gap-2 text-[11px] leading-relaxed text-slate-400">
-                  <span className="mt-[3px] shrink-0 text-emerald-500">▸</span>
+                <li key={index} className="flex gap-2 text-[11px] leading-relaxed text-ash">
+                  <span className="mt-[3px] shrink-0 text-signal-recover">▸</span>
                   {item}
                 </li>
               ))}
@@ -165,7 +165,7 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
             <ul className="space-y-1">
               {validation.problems.map((item, index) => (
                 <li key={index} className="flex gap-2 text-[11px] leading-relaxed text-amber-200/70">
-                  <span className="mt-[3px] shrink-0 text-amber-500">▸</span>
+                  <span className="mt-[3px] shrink-0 text-gold-500">▸</span>
                   {item}
                 </li>
               ))}
@@ -175,7 +175,7 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
 
         {Array.isArray(metadata.entry_names) && metadata.entry_names.length > 0 && (
           <Section title="Archive contents">
-            <div className="max-h-32 overflow-y-auto rounded border border-ink-700 bg-ink-950 p-2 font-mono text-[10px] text-slate-400">
+            <div className="max-h-32 overflow-y-auto rounded border border-ink-700 bg-ink-950 p-2 font-mono text-[10px] text-ash">
               {(metadata.entry_names as string[]).map((name, index) => (
                 <div key={index} className="truncate">
                   {name}
@@ -189,7 +189,7 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
           <Section title="EXIF">
             <div className="flex flex-wrap gap-1.5">
               {(metadata.exif_strings as string[]).map((value, index) => (
-                <span key={index} className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-slate-400">
+                <span key={index} className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-ash">
                   {value}
                 </span>
               ))}
@@ -202,12 +202,12 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
         </Section>
 
         <Section title="Integrity">
-          <div className="break-all font-mono text-[10px] text-slate-500">sha256 {fragment.sha256}</div>
+          <div className="break-all font-mono text-[10px] text-dim">sha256 {fragment.sha256}</div>
         </Section>
 
         <a
           href={api.downloadUrl(sessionId, fragment.fragment_id)}
-          className="block rounded border border-ink-600 bg-ink-800 py-2 text-center text-[12px] font-medium text-slate-200 transition-colors hover:bg-ink-700"
+          className="block rounded border border-ink-600 bg-ink-800 py-2 text-center text-[12px] font-medium text-bone transition-colors hover:bg-ink-700"
         >
           Download this file
         </a>
@@ -219,8 +219,8 @@ export function FragmentDetail({ fragment, sessionId }: Props) {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-slate-600">{label}</div>
-      <div className={`text-slate-300 ${mono ? "font-mono text-[11px]" : ""}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-faint">{label}</div>
+      <div className={`text-ash ${mono ? "font-mono text-[11px]" : ""}`}>{value}</div>
     </div>
   );
 }
@@ -228,7 +228,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-faint">
         {title}
       </div>
       {children}

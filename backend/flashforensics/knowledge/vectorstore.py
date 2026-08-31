@@ -34,6 +34,27 @@ logger = logging.getLogger(__name__)
 FILETYPE_COLLECTION = "filetype_knowledge"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+_shared_client: chromadb.ClientAPI | None = None
+
+
+def ephemeral_client() -> chromadb.ClientAPI:
+    """One in-process Chroma client, shared by every session's fragment index.
+
+    Chroma keeps per-client state behind a cached `System`, and building a fresh
+    `EphemeralClient` for every analysis walks into it: the first few runs work,
+    and then a later one dies with "Could not connect to tenant default_tenant"
+    — which on a public demo means the first visitor sees a recovery and the
+    next one sees a failure. Collections are already namespaced by session id,
+    so a single client serves every session without leaking anything between
+    them, and stops the per-run client from being one more thing held in memory.
+    """
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = chromadb.EphemeralClient(
+            settings=Settings(anonymized_telemetry=False, allow_reset=True)
+        )
+    return _shared_client
+
 
 class KnowledgeBase:
     """Vector index over format descriptions, used to disambiguate fragments."""
@@ -148,9 +169,7 @@ class FragmentIndex:
         embedding_provider: str = "auto",
     ):
         self.session_id = session_id
-        self.client = client or chromadb.EphemeralClient(
-            settings=Settings(anonymized_telemetry=False, allow_reset=True)
-        )
+        self.client = client or ephemeral_client()
         self.embedding_function, self.embedding_info = build_embedding_function(embedding_provider)
         self.collection = self.client.get_or_create_collection(
             name=f"fragments_{session_id}",

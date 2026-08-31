@@ -172,11 +172,18 @@ export const STATUS_STYLES: Record<
   },
 };
 
-/** Colours the entropy strip by what each band means, not by a gradient ramp. */
+/**
+ * Colours the entropy strip by what each band means, not by a gradient ramp.
+ *
+ * The order still reads as a ramp to the eye — cold and dark for nothing there,
+ * warming through structure and text, to gold and ember where the bytes are
+ * dense enough to be a photo or an archive — so the strip can be scanned for
+ * shape without consulting the legend, while each colour keeps a fixed meaning.
+ */
 export const BAND_COLORS: Record<string, string> = {
-  empty: "#1b2029",
-  structured: "#3d5a80",
-  text: "#4fb286",
-  mixed: "#e0a458",
-  compressed: "#d1495b",
+  empty: "#241f1c",
+  structured: "#5fc9df",
+  text: "#4bd894",
+  mixed: "#f0a92b",
+  compressed: "#f2643a",
 };

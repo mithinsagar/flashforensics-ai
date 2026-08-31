@@ -4,7 +4,7 @@ Agentic recovery for corrupted flash storage. Parses FAT32 and exFAT volumes at 
 
 **PhotoRec tells you it found 9,000 files. This tells you which 40 are your photos, and why.**
 
-![FlashForensics dashboard](docs/screens/03-results-top.png)
+![FlashForensics dashboard](docs/screens/06-results-top.png)
 
 ---
 
@@ -14,7 +14,7 @@ Insert a card and it appears in the dashboard on its own, with a button to recov
 
 That manifest is why the demo is not a canned animation. Every run of the sample card is graded against the record of what was really done to it, in the app, row by row.
 
-![Every claim checked against ground truth](docs/screens/04-verification.png)
+![Every claim checked against ground truth](docs/screens/07-verification.png)
 
 ## The problem
 
@@ -129,16 +129,24 @@ The same list appears in the dashboard, refreshed while the page is open, so a c
 
 Reading a raw device needs elevated permission on every operating system. When a card is detected but unreadable, the app says so and prints the command that fixes it, rather than pretending the card is not there. Nothing is ever written to the device: every open is read-only, and recovered files are written elsewhere.
 
-![Detected cards, the sample card, and file upload](docs/screens/01-start.png)
+![Detected cards, the sample card, and file upload](docs/screens/01-landing.png)
+
+The landing page is one screen: what is plugged in, the sample card, and a file picker. Everything below it explains the pipeline, the evidence model and the format coverage.
+
+| | |
+|---|---|
+| ![](docs/screens/02-pipeline.png) | **The five agents**, each with the operation it performs drawn beside it. |
+| ![](docs/screens/03-evidence.png) | **Why the answer is worth trusting**: the evidence list, the answer key, and the read-only guarantee. |
+| ![](docs/screens/04-coverage.png) | **What was measured**, and the 69 formats the classifier can name. |
 
 ### What the dashboard shows
 
 | | |
 |---|---|
-| ![](docs/screens/02-running.png) | **Live progress.** Five stages, each a different kind of work, with the log underneath. A run that stalls, stalls somewhere specific. |
-| ![](docs/screens/05-map.png) | **A map of the card.** Height is entropy, colour is what kind of data sits there, and recovered files are marked underneath so you can see where each came from. Real cards are mostly empty, so the view defaults to the occupied region rather than drawing a hairline against 60 GB of zeroes. |
-| ![](docs/screens/06-files-and-evidence.png) | **Results and the evidence behind them.** Every verdict lists the structural findings that produced it and the problems that downgraded it. Recovered images are drawn by the browser, which is also an independent check on the carve: a wrong extent does not render. |
-| ![](docs/screens/07-ask.png) | **Questions in plain language.** "Which photos are still good?" answered against this session's fragments, with citations. |
+| ![](docs/screens/05-running.png) | **Live progress.** Five stages, each a different kind of work, with the log underneath. A run that stalls, stalls somewhere specific. |
+| ![](docs/screens/08-map.png) | **A map of the card.** Height is entropy, colour is what kind of data sits there, and recovered files are marked underneath so you can see where each came from. Real cards are mostly empty, so the view defaults to the occupied region rather than drawing a hairline against 60 GB of zeroes. |
+| ![](docs/screens/09-files-and-evidence.png) | **Results and the evidence behind them.** Every verdict lists the structural findings that produced it and the problems that downgraded it. Recovered images are drawn by the browser, which is also an independent check on the carve: a wrong extent does not render. |
+| ![](docs/screens/10-ask.png) | **Questions in plain language.** "Which photos are still good?" answered against this session's fragments, with citations. |
 
 ### With a language model
 
