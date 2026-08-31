@@ -38,7 +38,7 @@ EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 class KnowledgeBase:
     """Vector index over format descriptions, used to disambiguate fragments."""
 
-    def __init__(self, persist_directory: str | Path | None = None):
+    def __init__(self, persist_directory: str | Path | None = None, embedding_provider: str = "auto"):
         self.persist_directory = Path(persist_directory) if persist_directory else None
         if self.persist_directory:
             self.persist_directory.mkdir(parents=True, exist_ok=True)
@@ -50,7 +50,7 @@ class KnowledgeBase:
             self.client = chromadb.EphemeralClient(
                 settings=Settings(anonymized_telemetry=False, allow_reset=True)
             )
-        self.embedding_function, self.embedding_info = build_embedding_function()
+        self.embedding_function, self.embedding_info = build_embedding_function(embedding_provider)
         self.collection = self.client.get_or_create_collection(
             name=self._collection_name(),
             metadata={"hnsw:space": "cosine"},
@@ -141,12 +141,17 @@ class KnowledgeBase:
 class FragmentIndex:
     """Per-session vector index over carved fragments, backing the RAG agent."""
 
-    def __init__(self, session_id: str, client: chromadb.ClientAPI | None = None):
+    def __init__(
+        self,
+        session_id: str,
+        client: chromadb.ClientAPI | None = None,
+        embedding_provider: str = "auto",
+    ):
         self.session_id = session_id
         self.client = client or chromadb.EphemeralClient(
             settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
-        self.embedding_function, self.embedding_info = build_embedding_function()
+        self.embedding_function, self.embedding_info = build_embedding_function(embedding_provider)
         self.collection = self.client.get_or_create_collection(
             name=f"fragments_{session_id}",
             metadata={"hnsw:space": "cosine"},

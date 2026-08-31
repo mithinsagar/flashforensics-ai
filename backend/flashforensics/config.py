@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     )
 
     chroma_path: Path | None = None
+    embedding_provider: Literal["auto", "minilm", "hashing"] = "auto"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     api_host: str = "0.0.0.0"
     api_port: int = 8000

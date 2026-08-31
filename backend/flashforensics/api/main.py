@@ -521,7 +521,7 @@ def ask(session_id: str, request: AskRequest) -> dict:
 
     agent = session.rag
     if agent is None:
-        agent = RagAgent(session_id, build_provider(settings))
+        agent = RagAgent(session_id, build_provider(settings), settings.embedding_provider)
         agent.ingest(session.state.get("fragments", []))
         session.rag = agent
 

@@ -99,6 +99,7 @@ for a deployment:
 | `FF_MAX_UPLOAD_BYTES` | 8 GB | Upload ceiling |
 | `FF_CORS_ORIGINS` | `["http://localhost:3000"]` | JSON array of allowed origins |
 | `FF_LLM_PROVIDER` | `auto` | `heuristic` pins the deterministic engine |
+| `FF_EMBEDDING_PROVIDER` | `auto` | `hashing` forces the pure-Python fallback and skips onnxruntime entirely — set this on a memory-capped instance |
 | `FF_ANTHROPIC_API_KEY` | unset | Enables model-written explanations |
 | `FF_OPENAI_API_KEY` | unset | Same, via OpenAI |
 

@@ -78,36 +78,65 @@ class HashingEmbedding:
         return [self._vector(text) for text in input]
 
 
-def build_embedding_function() -> tuple[object, dict]:
+_cache: dict[str, tuple[object, dict]] = {}
+
+
+def build_embedding_function(provider: str = "auto") -> tuple[object, dict]:
     """Return the best available embedder plus a description of what was chosen.
 
-    MiniLM is attempted first and actually exercised on a probe string, because
-    the model downloads lazily on first call: constructing the function proves
-    nothing, and a failure that surfaces mid-analysis is far worse than one
-    caught at startup.
-    """
-    try:
-        from chromadb.utils import embedding_functions
+    MiniLM is attempted first (unless `provider="hashing"` forces the fallback)
+    and actually exercised on a probe string, because the model downloads lazily
+    on first call: constructing the function proves nothing, and a failure that
+    surfaces mid-analysis is far worse than one caught at startup.
 
-        function = embedding_functions.ONNXMiniLM_L6_V2()
-        function(["probe"])
-        return function, {
-            "embedding_model": "all-MiniLM-L6-v2",
-            "backend": "onnxruntime",
-            "semantic": True,
-            "note": "384-dimensional sentence embeddings",
-        }
-    except Exception as error:
-        logger.warning(
-            "MiniLM unavailable (%s), falling back to offline hashing embeddings", error
-        )
-        return HashingEmbedding(), {
+    The result is memoised per `provider` value for the life of the process.
+    Every analysis session builds its own `FragmentIndex`, and without this
+    cache each one would spin up a fresh onnxruntime inference session for the
+    same model — cheap to compute but not to hold in memory, and on a
+    memory-capped instance a handful of concurrent sessions doing that is
+    enough to get the process killed. One embedder, reused by every session, is
+    what a stateless embedding function is for.
+    """
+    if provider in _cache:
+        return _cache[provider]
+
+    if provider != "hashing":
+        try:
+            from chromadb.utils import embedding_functions
+
+            function = embedding_functions.ONNXMiniLM_L6_V2()
+            function(["probe"])
+            result = (
+                function,
+                {
+                    "embedding_model": "all-MiniLM-L6-v2",
+                    "backend": "onnxruntime",
+                    "semantic": True,
+                    "note": "384-dimensional sentence embeddings",
+                },
+            )
+            _cache[provider] = result
+            return result
+        except Exception as error:
+            logger.warning(
+                "MiniLM unavailable (%s), falling back to offline hashing embeddings", error
+            )
+
+    reason = (
+        "FF_EMBEDDING_PROVIDER=hashing was set."
+        if provider == "hashing"
+        else "MiniLM could not be downloaded, so retrieval is lexical rather than semantic."
+    )
+    result = (
+        HashingEmbedding(),
+        {
             "embedding_model": HashingEmbedding.name_id,
             "backend": "pure-python",
             "semantic": False,
             "note": (
-                "MiniLM could not be downloaded, so retrieval is lexical rather than semantic. "
-                "Matching on shared vocabulary still works; paraphrase matching does not."
+                f"{reason} Matching on shared vocabulary still works; paraphrase matching does not."
             ),
-            "reason": str(error)[:200],
-        }
+        },
+    )
+    _cache[provider] = result
+    return result

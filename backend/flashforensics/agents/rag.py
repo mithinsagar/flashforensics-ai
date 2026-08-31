@@ -65,10 +65,10 @@ CATEGORY_HINTS: dict[str, str] = {
 class RagAgent:
     """Answers plain-language questions over one session's carved fragments."""
 
-    def __init__(self, session_id: str, provider: LLMProvider):
+    def __init__(self, session_id: str, provider: LLMProvider, embedding_provider: str = "auto"):
         self.session_id = session_id
         self.provider = provider
-        self.index = FragmentIndex(session_id)
+        self.index = FragmentIndex(session_id, embedding_provider=embedding_provider)
 
     def ingest(self, fragments: list[dict]) -> int:
         return self.index.add(fragments)

@@ -44,8 +44,9 @@ def write_report(state: RecoveryState) -> RecoveryState:
 
     provider = state["provider"]
     fragments = state.get("fragments", [])
+    embedding_provider = getattr(state.get("settings"), "embedding_provider", "auto")
 
-    rag = RagAgent(state["session_id"], provider)
+    rag = RagAgent(state["session_id"], provider, embedding_provider)
     indexed = rag.ingest(fragments)
     state["_rag"] = rag
 
@@ -161,7 +162,7 @@ def get_knowledge_base(settings) -> KnowledgeBase:
     """
     global _knowledge_base
     if _knowledge_base is None:
-        _knowledge_base = KnowledgeBase(settings.knowledge_dir)
+        _knowledge_base = KnowledgeBase(settings.knowledge_dir, settings.embedding_provider)
     return _knowledge_base
 
 

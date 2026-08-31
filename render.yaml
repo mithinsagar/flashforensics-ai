@@ -28,12 +28,26 @@ services:
       - key: FF_MAX_UPLOAD_BYTES
         value: "134217728"
 
-      # Set this to the deployed frontend's origin once Vercel has assigned one.
+      # The deployed frontend's real origin. If you redeploy this on your own
+      # domain, update this to match — the value here overwrites whatever is
+      # set in the Render dashboard on every blueprint sync.
       - key: FF_CORS_ORIGINS
-        value: '["https://flashforensics.vercel.app"]'
+        value: '["https://frontend-mithin-sagar.vercel.app"]'
 
       # Left unset deliberately. With no key the pipeline runs on its
       # deterministic rule engine, which is what the published accuracy numbers
       # were measured with, so the public demo reproduces them exactly.
       - key: FF_LLM_PROVIDER
         value: heuristic
+
+      # The free instance type caps memory at 512 MB. MiniLM through onnxruntime
+      # is well within that on its own, but every session used to build its own
+      # embedding function, so a couple of concurrent visitors could stack up
+      # enough onnxruntime sessions to get the process OOM-killed. That stacking
+      # is fixed (the embedder is now built once and shared), but forcing the
+      # pure-Python fallback here removes onnxruntime from the process entirely,
+      # which is the safer default for a shared free instance. Retrieval stays
+      # lexical rather than semantic; the demo card's format matches are exact
+      # words either way, so nothing about the public demo's behaviour changes.
+      - key: FF_EMBEDDING_PROVIDER
+        value: hashing
