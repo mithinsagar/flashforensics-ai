@@ -1,5 +1,12 @@
 # FlashForensics AI
 
+[![Live demo](https://img.shields.io/badge/Live%20demo-run%20a%20real%20recovery-1F6FEB?style=flat-square)](https://frontend-mithin-sagar.vercel.app)
+[![API](https://img.shields.io/badge/API-status-181B22?style=flat-square)](https://flashforensics-api.onrender.com/api/health)
+[![Tests](https://img.shields.io/badge/tests-82%20passing-181B22?style=flat-square)](.github/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-181B22?style=flat-square)](LICENSE)
+
+**→ [Try it in your browser](https://frontend-mithin-sagar.vercel.app)** — no install, no card needed. The demo builds a damaged SD card on the spot and recovers it in front of you.
+
 Agentic recovery for corrupted flash storage. Parses FAT32 and exFAT volumes at the byte level, maps entropy to find where the damage is, carves the regions the filesystem has lost, and returns a ranked list of what can actually be recovered with the evidence behind every verdict.
 
 **PhotoRec tells you it found 9,000 files. This tells you which 40 are your photos, and why.**
@@ -13,6 +20,8 @@ Agentic recovery for corrupted flash storage. Parses FAT32 and exFAT volumes at 
 Insert a card and it appears in the dashboard on its own, with a button to recover it. No card handy? The app builds its own patient: a 32 MB FAT32 volume filled with real photos, documents, archives and audio, then damaged six different ways, with a manifest recording exactly what was done.
 
 That manifest is why the demo is not a canned animation. Every run of the sample card is graded against the record of what was really done to it, in the app, row by row.
+
+Run it now at **[frontend-mithin-sagar.vercel.app](https://frontend-mithin-sagar.vercel.app)**. The API sleeps when idle on its free tier, so the first request after a quiet spell takes about a minute to wake it.
 
 ![Every claim checked against ground truth](docs/screens/07-verification.png)
 
