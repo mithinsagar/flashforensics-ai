@@ -6,7 +6,15 @@ import pytest
 
 from flashforensics.disk import signatures as sig
 from flashforensics.disk.carver import Carver
-from flashforensics.disk.entropy import ContentBand, EntropyMap, classify_band, shannon_entropy
+from flashforensics.disk.entropy import (
+    ContentBand,
+    EntropyBlock,
+    EntropyMap,
+    chi_square_uniformity,
+    classify_band,
+    printable_ratio,
+    shannon_entropy,
+)
 from flashforensics.disk.fat32 import DamageKind, Fat32Parser
 from flashforensics.disk.image import DiskImage
 from flashforensics.disk.validators import identify_zip_container, validate
@@ -155,6 +163,111 @@ class TestEntropy:
         overview_resolution = min(point["length"] for point in overview)
         detail_resolution = min(point["length"] for point in detail)
         assert detail_resolution <= overview_resolution
+
+
+class TestChiSquareUniformity:
+    def test_short_data_is_not_scored(self):
+        """Below 256 bytes there aren't enough samples to fill the byte histogram."""
+        assert chi_square_uniformity(b"\x00" * 255) == 0.0
+
+    def test_uniform_random_bytes_score_low(self):
+        import os
+
+        assert chi_square_uniformity(os.urandom(65536)) < 400.0
+
+    def test_repeated_pattern_scores_high(self):
+        """A single byte value repeated is maximally non-uniform."""
+        data = b"\xaa" * 4096
+        assert chi_square_uniformity(data) > 1_000_000.0
+
+    def test_two_alternating_bytes_score_higher_than_random(self):
+        import os
+
+        skewed = (b"\x01\x02" * 2048)
+        assert chi_square_uniformity(skewed) > chi_square_uniformity(os.urandom(4096))
+
+
+class TestPrintableRatio:
+    def test_empty_data_is_zero(self):
+        assert printable_ratio(b"") == 0.0
+
+    def test_all_printable_ascii_is_one(self):
+        assert printable_ratio(b"the quick brown fox jumps over the lazy dog") == 1.0
+
+    def test_tabs_newlines_and_carriage_returns_count_as_printable(self):
+        assert printable_ratio(b"line one\r\nline two\tindented") == 1.0
+
+    def test_binary_bytes_lower_the_ratio(self):
+        data = b"hello" + bytes([0, 1, 2, 255, 254]) + b"world"
+        ratio = printable_ratio(data)
+        assert 0.0 < ratio < 1.0
+        assert ratio == pytest.approx(10 / 15)
+
+    def test_null_bytes_are_not_printable(self):
+        assert printable_ratio(b"\x00" * 100) == 0.0
+
+
+class TestFindAnomalies:
+    @staticmethod
+    def _block(offset: int, entropy: float, zero_ratio: float, band: ContentBand) -> EntropyBlock:
+        return EntropyBlock(offset=offset, length=4096, entropy=entropy, band=band, zero_ratio=zero_ratio)
+
+    def test_no_blocks_reports_no_anomalies(self):
+        assert EntropyMap(4096).find_anomalies() == []
+
+    def test_steady_high_entropy_run_is_not_flagged(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 7.9, 0.0, ContentBand.COMPRESSED),
+            self._block(4096, 7.8, 0.0, ContentBand.COMPRESSED),
+            self._block(8192, 7.85, 0.0, ContentBand.COMPRESSED),
+        ]
+        assert entropy_map.find_anomalies() == []
+
+    def test_truncation_cliff_is_flagged_when_data_drops_to_zero_fill(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 7.9, 0.0, ContentBand.COMPRESSED),
+            self._block(4096, 0.0, 1.0, ContentBand.EMPTY),
+        ]
+        anomalies = entropy_map.find_anomalies()
+        assert len(anomalies) == 1
+        assert anomalies[0].kind == "truncation_cliff"
+        assert anomalies[0].severity == "high"
+        assert anomalies[0].offset == 4096
+
+    def test_entropy_cliff_without_zero_fill_is_flagged_separately(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 7.9, 0.0, ContentBand.COMPRESSED),
+            self._block(4096, 0.5, 0.1, ContentBand.EMPTY),
+        ]
+        anomalies = entropy_map.find_anomalies()
+        assert len(anomalies) == 1
+        assert anomalies[0].kind == "entropy_cliff"
+        assert anomalies[0].severity == "medium"
+
+    def test_data_outside_allocated_ranges_is_orphaned(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 6.0, 0.0, ContentBand.TEXT)]
+        anomalies = entropy_map.find_anomalies(allocated_ranges=[(4096, 8192)])
+        assert len(anomalies) == 1
+        assert anomalies[0].kind == "orphaned_data"
+        assert anomalies[0].severity == "high"
+
+    def test_data_inside_allocated_ranges_is_not_orphaned(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 6.0, 0.0, ContentBand.TEXT)]
+        assert entropy_map.find_anomalies(allocated_ranges=[(0, 4096)]) == []
+
+    def test_empty_and_structured_blocks_are_exempt_from_orphan_checks(self):
+        """Free space and filesystem metadata are expected outside allocated ranges."""
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 0.0, 1.0, ContentBand.EMPTY),
+            self._block(4096, 2.0, 0.0, ContentBand.STRUCTURED),
+        ]
+        assert entropy_map.find_anomalies(allocated_ranges=[(8192, 12288)]) == []
 
 
 class TestValidators:
