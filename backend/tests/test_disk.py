@@ -392,6 +392,58 @@ class TestValidators:
 
         assert not validate(os.urandom(8192), "txt").structure_complete
 
+    def test_complete_gif_validates(self):
+        from tools.make_fixture import make_gif
+
+        result = validate(make_gif(1), "gif")
+        assert result.structure_complete
+        assert result.footer_present
+        assert result.metadata["width"] == 120
+        assert result.metadata["height"] == 120
+
+    def test_truncated_gif_has_no_trailer(self):
+        """Cutting off the trailer byte must not be mistaken for one found by luck."""
+        from tools.make_fixture import make_gif
+
+        data = make_gif(1)
+        result = validate(data[:20], "gif")
+        assert not result.structure_complete
+        assert not result.footer_present
+        assert any("trailer" in problem for problem in result.problems)
+
+    def test_gif_missing_header_fails(self):
+        result = validate(b"not a gif at all", "gif")
+        assert not result.header_valid
+        assert result.confidence == 0.0
+
+    def test_generic_format_with_footer_present(self):
+        """rtf has no dedicated structural walker, so validate() falls back to
+        the header/footer heuristic — exactly what a carved rtf fragment gets in
+        production, per the `signature.footer` passed at the real call sites."""
+        signature = sig.lookup("rtf")
+        data = signature.header + b"Recovered text content" + signature.footer
+        result = validate(data, "rtf", signature.footer)
+        assert result.footer_present
+        assert result.structure_complete
+        assert result.true_size == len(data)
+
+    def test_generic_format_without_footer_is_incomplete(self):
+        signature = sig.lookup("rtf")
+        data = signature.header + b"Recovered text content, then the card died mid-write"
+        result = validate(data, "rtf", signature.footer)
+        assert not result.footer_present
+        assert not result.structure_complete
+        assert any("incomplete" in problem for problem in result.problems)
+
+    def test_generic_format_with_no_known_footer_rests_on_header_alone(self):
+        """exe has no footer in the signature table, so there is nothing to walk
+        towards — the verdict is explicitly a weaker one, not a false completeness."""
+        signature = sig.lookup("exe")
+        assert signature.footer is None
+        result = validate(signature.header + b"\x00" * 64, "exe", signature.footer)
+        assert not result.structure_complete
+        assert any("no structural validator" in problem for problem in result.problems)
+
 
 class TestSignatures:
     def test_zip_family_shares_one_ambiguity_group(self):
