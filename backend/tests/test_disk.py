@@ -270,6 +270,119 @@ class TestFindAnomalies:
         assert entropy_map.find_anomalies(allocated_ranges=[(8192, 12288)]) == []
 
 
+class TestRegionsAndStatistics:
+    @staticmethod
+    def _block(offset: int, entropy: float, band: ContentBand, zero_ratio: float = 0.0) -> EntropyBlock:
+        return EntropyBlock(offset=offset, length=4096, entropy=entropy, band=band, zero_ratio=zero_ratio)
+
+    def test_regions_merges_consecutive_same_band_blocks(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 7.8, ContentBand.COMPRESSED),
+            self._block(4096, 7.9, ContentBand.COMPRESSED),
+            self._block(8192, 6.0, ContentBand.TEXT),
+        ]
+        regions = entropy_map.regions()
+        assert len(regions) == 2
+        assert regions[0].start == 0
+        assert regions[0].end == 8192
+        assert regions[0].band == ContentBand.COMPRESSED
+        assert regions[0].block_count == 2
+        assert regions[0].mean_entropy == pytest.approx((7.8 + 7.9) / 2)
+        assert regions[1].start == 8192
+        assert regions[1].end == 12288
+        assert regions[1].band == ContentBand.TEXT
+
+    def test_regions_min_blocks_drops_short_runs(self):
+        """A run shorter than min_blocks is dropped entirely, not merged into a neighbour."""
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 7.9, ContentBand.COMPRESSED),
+            self._block(4096, 6.0, ContentBand.TEXT),
+            self._block(8192, 6.1, ContentBand.TEXT),
+        ]
+        regions = entropy_map.regions(min_blocks=2)
+        assert len(regions) == 1
+        assert regions[0].band == ContentBand.TEXT
+        assert regions[0].block_count == 2
+
+    def test_candidate_regions_excludes_empty_band(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 0.0, ContentBand.EMPTY),
+            self._block(4096, 6.0, ContentBand.TEXT),
+        ]
+        candidates = entropy_map.candidate_regions()
+        assert len(candidates) == 1
+        assert candidates[0].band == ContentBand.TEXT
+
+    def test_candidate_regions_excludes_below_min_entropy(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 2.0, ContentBand.STRUCTURED)]
+        assert entropy_map.candidate_regions(min_entropy=3.0) == []
+        assert len(entropy_map.candidate_regions(min_entropy=1.0)) == 1
+
+    def test_entropy_at_and_band_at_return_defaults_out_of_range(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 6.0, ContentBand.TEXT)]
+        assert entropy_map.entropy_at(4096 * 5) == 0.0
+        assert entropy_map.band_at(4096 * 5) == ContentBand.EMPTY
+
+    def test_entropy_at_and_band_at_in_range(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 6.0, ContentBand.TEXT)]
+        assert entropy_map.entropy_at(0) == 6.0
+        assert entropy_map.band_at(0) == ContentBand.TEXT
+
+    @pytest.mark.parametrize(
+        "entropy,expected_band",
+        [
+            (0.49, ContentBand.EMPTY),
+            (0.5, ContentBand.STRUCTURED),
+            (3.99, ContentBand.STRUCTURED),
+            (4.0, ContentBand.TEXT),
+            (6.49, ContentBand.TEXT),
+            (6.5, ContentBand.MIXED),
+            (7.49, ContentBand.MIXED),
+            (7.5, ContentBand.COMPRESSED),
+            (8.01, ContentBand.COMPRESSED),
+        ],
+    )
+    def test_classify_band_boundaries(self, entropy, expected_band):
+        assert classify_band(entropy) == expected_band
+
+    def test_statistics_on_empty_map(self):
+        assert EntropyMap(4096).statistics() == {"blocks": 0}
+
+    def test_statistics_reports_bands_and_occupancy(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [
+            self._block(0, 0.0, ContentBand.EMPTY),
+            self._block(4096, 7.9, ContentBand.COMPRESSED),
+        ]
+        stats = entropy_map.statistics()
+        assert stats["blocks"] == 2
+        assert stats["bands"] == {"empty": 1, "compressed": 1}
+        assert stats["occupancy_ratio"] == 0.5
+        assert stats["mean_entropy"] == pytest.approx(3.95)
+        assert stats["max_entropy"] == pytest.approx(7.9)
+
+    def test_entropy_block_to_dict_rounds_entropy(self):
+        block = self._block(0, 7.86666, ContentBand.COMPRESSED, zero_ratio=0.12345)
+        as_dict = block.to_dict()
+        assert as_dict["entropy"] == 7.867
+        assert as_dict["zero_ratio"] == 0.123
+        assert as_dict["band"] == "compressed"
+
+    def test_entropy_region_to_dict_reports_length(self):
+        entropy_map = EntropyMap(4096)
+        entropy_map.blocks = [self._block(0, 6.0, ContentBand.TEXT), self._block(4096, 6.1, ContentBand.TEXT)]
+        region = entropy_map.regions()[0]
+        as_dict = region.to_dict()
+        assert as_dict["length"] == 8192
+        assert as_dict["block_count"] == 2
+
+
 class TestValidators:
     def test_complete_jpeg_validates(self):
         from tools.make_fixture import make_jpeg
